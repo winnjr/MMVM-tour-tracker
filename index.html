@@ -116,6 +116,24 @@
     text-transform: uppercase;
   }
   .card h2 { font-size: 20px; font-weight: normal; color: var(--navy); margin: 2px 0 10px; }
+  .card h2 a { color: var(--navy); text-decoration: none; }
+  .card h2 a:hover { text-decoration: underline; }
+  .back-btn {
+    display: inline-block;
+    margin-bottom: 16px;
+    border: 1px solid var(--line);
+    background: var(--card);
+    border-radius: 20px;
+    padding: 6px 16px;
+    font-size: 13px;
+    cursor: pointer;
+    color: var(--ink);
+    text-decoration: none;
+    font-family: Arial, sans-serif;
+  }
+  .back-btn:hover { background: var(--navy); color: #f2efe8; border-color: var(--navy); }
+  .filters button.toggle { border-color: var(--gold); }
+  .filters button.toggle.active { background: var(--gold); border-color: var(--gold); color: #fff; }
   .badge {
     font-size: 12px;
     padding: 4px 12px;
@@ -196,6 +214,16 @@ var CSV_URL = "https://docs.google.com/spreadsheets/d/" + SHEET_ID + "/gviz/tq?t
 
 var requests = [];
 var activeFilter = "All";
+var hideCompleted = false;
+
+function singleNum() {
+  var m = location.hash.match(/^#req-(.+)$/);
+  return m ? decodeURIComponent(m[1]) : null;
+}
+
+function isCompleted(r) {
+  return (r.status || "").toLowerCase().indexOf("complet") >= 0;
+}
 
 function parseCSV(text) {
   var rows = [], row = [], field = "", inQuotes = false;
@@ -282,11 +310,15 @@ function renderSummary() {
 }
 
 function renderFilters() {
+  if (singleNum()) { document.getElementById("filters").innerHTML = ""; return; }
   var statuses = ["All"];
   requests.forEach(function(r) { if (statuses.indexOf(r.status) < 0) statuses.push(r.status); });
-  document.getElementById("filters").innerHTML = statuses.map(function(s) {
+  var html = statuses.map(function(s) {
     return '<button class="' + (s === activeFilter ? "active" : "") + '" onclick="setFilter(\'' + esc(s).replace(/'/g, "\\'") + '\')">' + esc(s) + '</button>';
   }).join("");
+  html += '<button class="toggle' + (hideCompleted ? " active" : "") + '" onclick="toggleCompleted()">' +
+    (hideCompleted ? "Showing open only" : "Hide completed") + '</button>';
+  document.getElementById("filters").innerHTML = html;
 }
 
 function setFilter(s) {
@@ -295,18 +327,40 @@ function setFilter(s) {
   renderCards();
 }
 
+function toggleCompleted() {
+  hideCompleted = !hideCompleted;
+  renderFilters();
+  renderCards();
+}
+
 function renderCards() {
-  var list = requests.filter(function(r) { return activeFilter === "All" || r.status === activeFilter; })
-    .sort(function(a, b) { return (a.sortDate || "9999").localeCompare(b.sortDate || "9999"); });
+  var single = singleNum();
+  var list;
+  var backBtn = "";
+  if (single !== null) {
+    list = requests.filter(function(r) { return String(r.num) === String(single); });
+    backBtn = '<a class="back-btn" href="#" onclick="location.hash=\'\'; return false;">&larr; All requests</a>';
+    if (!list.length) {
+      document.getElementById("cards").innerHTML = backBtn + '<div class="loading">Request No. ' + esc(single) + ' was not found.</div>';
+      return;
+    }
+  } else {
+    list = requests.filter(function(r) {
+      if (activeFilter !== "All" && r.status !== activeFilter) return false;
+      if (hideCompleted && isCompleted(r)) return false;
+      return true;
+    });
+  }
+  list = list.slice().sort(function(a, b) { return (a.sortDate || "9999").localeCompare(b.sortDate || "9999"); });
   if (!list.length) {
-    document.getElementById("cards").innerHTML = '<div class="loading">No tour requests to show.</div>';
+    document.getElementById("cards").innerHTML = backBtn + '<div class="loading">No tour requests to show.</div>';
     return;
   }
-  document.getElementById("cards").innerHTML = list.map(function(r) {
+  document.getElementById("cards").innerHTML = backBtn + list.map(function(r) {
     return '<div class="card ' + r.statusClass + '">' +
       '<div class="card-top">' +
         '<div><div class="req-num">Request No. ' + esc(r.num) + '</div>' +
-        '<h2>' + esc(r.org) + '</h2></div>' +
+        '<h2><a href="#req-' + encodeURIComponent(r.num) + '" title="View this request by itself">' + esc(r.org) + '</a></h2></div>' +
         '<span class="badge ' + r.statusClass + '">' + esc(r.status) + '</span>' +
       '</div>' +
       '<div class="when"><strong>' + esc(r.tourDate) + '</strong> at <strong>' + esc(r.tourTime) + '</strong> &middot; ' + esc(r.size) + ' guests</div>' +
@@ -322,6 +376,11 @@ function renderCards() {
     '</div>';
   }).join("");
 }
+
+window.addEventListener("hashchange", function() {
+  renderFilters();
+  renderCards();
+});
 
 load();
 </script>

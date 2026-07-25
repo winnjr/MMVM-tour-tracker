@@ -223,6 +223,46 @@
     color: var(--green);
     margin-bottom: 4px;
   }
+  .cmt-form {
+    margin-top: 14px;
+    padding: 12px 14px;
+    background: #faf8f3;
+    border: 1px dashed var(--line);
+    border-radius: 4px;
+  }
+  .cmt-form .comments-label {
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: var(--muted);
+    margin-bottom: 8px;
+  }
+  .cmt-form input, .cmt-form textarea {
+    display: block;
+    width: 100%;
+    border: 1px solid var(--line);
+    border-radius: 4px;
+    padding: 8px 10px;
+    font-size: 14px;
+    font-family: Arial, sans-serif;
+    margin-bottom: 8px;
+    background: #ffffff;
+    color: var(--ink);
+  }
+  .cmt-form textarea { min-height: 70px; resize: vertical; }
+  .cmt-form button {
+    border: 1px solid var(--navy-light);
+    background: var(--navy-light);
+    color: #f2efe8;
+    border-radius: 20px;
+    padding: 6px 18px;
+    font-size: 13px;
+    cursor: pointer;
+    font-family: Arial, sans-serif;
+  }
+  .cmt-form button:hover { background: var(--navy); }
+  .cmt-form button:disabled { opacity: 0.6; cursor: default; }
+  .cmt-msg { margin-left: 10px; font-size: 13px; color: #8a3030; }
   .loading, .error {
     text-align: center;
     padding: 40px 20px;
@@ -258,6 +298,7 @@
 <script>
 var SHEET_ID = "1Xaw20ubhWldHclfIVvDKmOGPQVVS6pCp9EXE3XBqPpU";
 var CSV_URL = "https://docs.google.com/spreadsheets/d/" + SHEET_ID + "/gviz/tq?tqx=out:csv";
+var SCRIPT_URL = ""; // Apps Script web app URL for docent comment submissions
 
 var requests = [];
 var activeFilter = "Open";
@@ -268,7 +309,16 @@ function singleNum() {
 }
 
 function isCompleted(r) {
-  return (r.status || "").toLowerCase().indexOf("complet") >= 0;
+  // A tour is completed automatically once its (end) date has passed
+  return r.dateEnd < todayISO();
+}
+
+function derivedStatus(r) {
+  if (isCompleted(r)) return { text: "Completed", badge: "awaiting", card: "awaiting" };
+  var crew = crewInfo(r);
+  if (crew && crew.fully) return { text: "Fully crewed", badge: "crewed", card: "confirmed" };
+  if (crew) return { text: "Needs " + crew.gap + " docent" + (crew.gap === 1 ? "" : "s"), badge: "needs", card: "pending" };
+  return { text: "Open", badge: "awaiting", card: "awaiting" };
 }
 
 function crewInfo(r) {
@@ -292,7 +342,7 @@ function gmailUrl(r) {
     "Group POC: " + r.poc + "\n" +
     "POC contact: " + r.contact + "\n" +
     "Docent(s): " + r.docents + "\n" +
-    "Status: " + r.status + "\n" +
+    "Status: " + derivedStatus(r).text + "\n" +
     (r.notes ? "Notes: " + r.notes + "\n" : "") +
     "\nTracker link: https://winnjr.github.io/MMVM-tour-tracker/#req-" + encodeURIComponent(r.num) + "\n";
   return "https://mail.google.com/mail/?view=cm&fs=1&su=" + encodeURIComponent(subject) + "&body=" + encodeURIComponent(body);
@@ -334,12 +384,18 @@ function parseCSV(text) {
   return rows;
 }
 
-function statusClass(status) {
-  var s = (status || "").toLowerCase();
-  if (s.indexOf("confirm") >= 0 || s.indexOf("complete") >= 0) return "confirmed";
-  if (s.indexOf("pend") >= 0) return "pending";
-  if (s.indexOf("accept") >= 0) return "accepted";
-  return "awaiting";
+function parseTourDate(s) {
+  var months = { jan:1, feb:2, mar:3, apr:4, may:5, jun:6, jul:7, aug:8, sep:9, oct:10, nov:11, dec:12 };
+  var m = (s || "").toLowerCase().match(/(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\.?\s+(\d{1,2})(?:\s*[-–]\s*(\d{1,2}))?,?\s+(\d{4})/);
+  if (!m) return { start: "9999-99-99", end: "9999-99-99" };
+  function iso(y, mo, d) { return y + "-" + String(mo).padStart(2, "0") + "-" + String(d).padStart(2, "0"); }
+  var mo = months[m[1]];
+  return { start: iso(m[4], mo, m[2]), end: iso(m[4], mo, m[3] || m[2]) };
+}
+
+function todayISO() {
+  var t = new Date();
+  return t.getFullYear() + "-" + String(t.getMonth() + 1).padStart(2, "0") + "-" + String(t.getDate()).padStart(2, "0");
 }
 
 function esc(s) {
@@ -357,24 +413,32 @@ function load() {
     function col(name) { return header.indexOf(name.toLowerCase()); }
     var idx = {
       num: col("Req #"), org: col("Organization"), purpose: col("Purpose"),
-      tourDate: col("Tour Date"), tourTime: col("Tour Time"), sortDate: col("Sort Date"),
+      tourDate: col("Tour Date"), tourTime: col("Tour Time"),
       size: col("Group Size"), received: col("Date Received"), source: col("Source"),
       poc: col("Group POC"), contact: col("POC Contact"), docents: col("Docents"),
-      status: col("Status"), notes: col("Notes"), comments: col("Tour Comments"),
+      approved: col("Approved?"), notes: col("Notes"), comments: col("Tour Comments"),
       needed: col("Docents Needed"), confirmedCt: col("Docents Confirmed")
     };
     requests = rows.slice(1).map(function(r) {
       function g(k) { return idx[k] >= 0 ? (r[idx[k]] || "").trim() : ""; }
+      var dates = parseTourDate(g("tourDate"));
       return {
         num: g("num"), org: g("org"), purpose: g("purpose"),
-        tourDate: g("tourDate"), tourTime: g("tourTime"), sortDate: g("sortDate"),
+        tourDate: g("tourDate"), tourTime: g("tourTime"),
         size: g("size"), received: g("received"), source: g("source"),
         poc: g("poc"), contact: g("contact"), docents: g("docents"),
-        status: g("status") || "Awaiting details", notes: g("notes"),
+        approved: g("approved"), notes: g("notes"),
         comments: g("comments"), needed: g("needed"), confirmedCt: g("confirmedCt"),
-        statusClass: statusClass(g("status"))
+        dateStart: dates.start, dateEnd: dates.end
       };
-    }).filter(function(r) { return r.org !== ""; });
+    }).filter(function(r) {
+      if (r.org === "") return false;
+      // A tour is live only once approved (Approved? = YES) and a docent count is set
+      if (!/^y/i.test(r.approved)) return false;
+      var needed = parseInt(r.needed, 10);
+      if (isNaN(needed) || needed < 1) return false;
+      return true;
+    });
     renderSummary();
     renderFilters();
     renderCards();
@@ -388,23 +452,17 @@ function load() {
 function renderSummary() {
   var total = requests.length;
   var completed = requests.filter(isCompleted).length;
-  var confirmed = requests.filter(function(r){ return r.statusClass === "confirmed" && !isCompleted(r); }).length;
-  var open = requests.filter(function(r){ return r.statusClass === "pending" || r.statusClass === "awaiting"; }).length;
-  var today = new Date();
-  var iso = today.getFullYear() + "-" + String(today.getMonth()+1).padStart(2,"0") + "-" + String(today.getDate()).padStart(2,"0");
-  var upcoming = requests.filter(function(r){ return r.sortDate >= iso; }).length;
+  var upcoming = total - completed;
   var docentGap = requests.reduce(function(sum, r) {
     if (isCompleted(r)) return sum;
     var crew = crewInfo(r);
     return sum + (crew ? crew.gap : 0);
   }, 0);
   document.getElementById("summary").innerHTML =
-    '<div class="stat"><div class="num">' + total + '</div><div class="label">Total requests</div></div>' +
-    '<div class="stat"><div class="num">' + confirmed + '</div><div class="label">Confirmed</div></div>' +
-    '<div class="stat"><div class="num">' + open + '</div><div class="label">Needing action</div></div>' +
+    '<div class="stat"><div class="num">' + total + '</div><div class="label">Total tours</div></div>' +
     '<div class="stat"><div class="num">' + upcoming + '</div><div class="label">Upcoming tours</div></div>' +
-    '<div class="stat"><div class="num">' + completed + '</div><div class="label">Completed</div></div>' +
-    '<div class="stat"><div class="num">' + docentGap + '</div><div class="label">Docents still needed</div></div>';
+    '<div class="stat"><div class="num">' + docentGap + '</div><div class="label">Docents still needed</div></div>' +
+    '<div class="stat"><div class="num">' + completed + '</div><div class="label">Completed</div></div>';
 }
 
 function renderFilters() {
@@ -439,28 +497,23 @@ function renderCards() {
       return true;
     });
   }
-  list = list.slice().sort(function(a, b) { return (a.sortDate || "9999").localeCompare(b.sortDate || "9999"); });
+  list = list.slice().sort(function(a, b) { return (a.dateStart || "9999").localeCompare(b.dateStart || "9999"); });
   if (!list.length) {
     document.getElementById("cards").innerHTML = backBtn + '<div class="loading">No tour requests to show.</div>';
     return;
   }
   document.getElementById("cards").innerHTML = backBtn + list.map(function(r) {
     var crew = crewInfo(r);
-    var crewBadge = "";
+    var ds = derivedStatus(r);
     var crewLine = "";
     if (crew && !isCompleted(r)) {
-      crewBadge = crew.fully
-        ? '<span class="badge crewed">Fully crewed</span>'
-        : '<span class="badge needs">Needs ' + crew.gap + ' docent' + (crew.gap === 1 ? "" : "s") + '</span>';
       crewLine = ' &middot; <strong>' + crew.confirmed + ' of ' + crew.needed + '</strong> docent' + (crew.needed === 1 ? "" : "s") + ' confirmed';
-    } else if (r.needed && !isCompleted(r)) {
-      crewLine = ' &middot; <strong>' + esc(r.needed) + '</strong> docents needed';
     }
-    return '<div class="card ' + r.statusClass + '">' +
+    return '<div class="card ' + ds.card + '">' +
       '<div class="card-top">' +
         '<div><div class="req-num">Request No. ' + esc(r.num) + '</div>' +
         '<h2><a href="#req-' + encodeURIComponent(r.num) + '" title="View this request by itself">' + esc(r.org) + '</a></h2></div>' +
-        '<span>' + crewBadge + ' <span class="badge ' + r.statusClass + '">' + esc(r.status) + '</span></span>' +
+        '<span class="badge ' + ds.badge + '">' + esc(ds.text) + '</span>' +
       '</div>' +
       '<div class="when"><strong>' + esc(r.tourDate) + '</strong> at <strong>' + esc(r.tourTime) + '</strong> &middot; ' + esc(r.size) + ' guests' + crewLine + '</div>' +
       '<dl class="fields">' +
@@ -471,11 +524,46 @@ function renderCards() {
         '<dt>Docent(s)</dt><dd>' + esc(r.docents) + '</dd>' +
       '</dl>' +
       (r.notes ? '<div class="notes">' + esc(r.notes) + '</div>' : '') +
-      (r.comments ? '<div class="comments"><div class="comments-label">Tour comments</div>' + esc(r.comments) + '</div>' : '') +
-      (isCompleted(r) ? '' : '<a class="mail-btn" href="' + gmailUrl(r).replace(/"/g, "&quot;") + '" target="_blank" rel="noopener">Email this request</a>') +
+      (r.comments ? '<div class="comments"><div class="comments-label">Tour comments</div>' + esc(r.comments).replace(/\n/g, "<br>") + '</div>' : '') +
+      (isCompleted(r) ? commentForm(r) : '<a class="mail-btn" href="' + gmailUrl(r).replace(/"/g, "&quot;") + '" target="_blank" rel="noopener">Email this request</a>') +
       ((isCompleted(r) || (crew && crew.fully)) ? '' : '<a class="cover-btn" href="' + coverUrl(r).replace(/"/g, "&quot;") + '">I can cover this tour</a>') +
     '</div>';
   }).join("");
+}
+
+function commentForm(r) {
+  if (!SCRIPT_URL) return "";
+  var n = esc(r.num);
+  return '<div class="cmt-form" id="cmtform-' + n + '">' +
+    '<div class="comments-label">Add a docent comment (permanent once submitted)</div>' +
+    '<input type="text" id="cmtname-' + n + '" maxlength="100" placeholder="Your name">' +
+    '<textarea id="cmttext-' + n + '" maxlength="1000" placeholder="Comments about this tour"></textarea>' +
+    '<button onclick="submitComment(\'' + n.replace(/'/g, "\\'") + '\')">Submit comment</button>' +
+    '<span class="cmt-msg" id="cmtmsg-' + n + '"></span>' +
+  '</div>';
+}
+
+function submitComment(num) {
+  var name = document.getElementById("cmtname-" + num).value.trim();
+  var text = document.getElementById("cmttext-" + num).value.trim();
+  var msg = document.getElementById("cmtmsg-" + num);
+  if (!name || !text) { msg.textContent = "Name and comment are both required."; return; }
+  var btn = document.querySelector("#cmtform-" + CSS.escape(num) + " button");
+  btn.disabled = true;
+  btn.textContent = "Submitting...";
+  fetch(SCRIPT_URL, { method: "POST", body: new URLSearchParams({ req: num, name: name, comment: text }) })
+    .then(function(resp) { return resp.json(); })
+    .then(function(d) {
+      if (d.ok) {
+        document.getElementById("cmtform-" + num).innerHTML =
+          '<div class="comments-label">Thank you - your comment has been recorded.</div>';
+      } else { throw new Error(d.error || "Submission failed"); }
+    })
+    .catch(function(err) {
+      msg.textContent = "Could not submit (" + err.message + "). Please try again.";
+      btn.disabled = false;
+      btn.textContent = "Submit comment";
+    });
 }
 
 window.addEventListener("hashchange", function() {

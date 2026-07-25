@@ -351,7 +351,8 @@ function load() {
       tourDate: col("Tour Date"), tourTime: col("Tour Time"), sortDate: col("Sort Date"),
       size: col("Group Size"), received: col("Date Received"), source: col("Source"),
       poc: col("Group POC"), contact: col("POC Contact"), docents: col("Docents"),
-      status: col("Status"), notes: col("Notes"), comments: col("Tour Comments")
+      status: col("Status"), notes: col("Notes"), comments: col("Tour Comments"),
+      needed: col("Docents Needed")
     };
     requests = rows.slice(1).map(function(r) {
       function g(k) { return idx[k] >= 0 ? (r[idx[k]] || "").trim() : ""; }
@@ -361,7 +362,7 @@ function load() {
         size: g("size"), received: g("received"), source: g("source"),
         poc: g("poc"), contact: g("contact"), docents: g("docents"),
         status: g("status") || "Awaiting details", notes: g("notes"),
-        comments: g("comments"),
+        comments: g("comments"), needed: g("needed"),
         statusClass: statusClass(g("status"))
       };
     }).filter(function(r) { return r.org !== ""; });
@@ -445,7 +446,8 @@ function renderCards() {
         '<h2><a href="#req-' + encodeURIComponent(r.num) + '" title="View this request by itself">' + esc(r.org) + '</a></h2></div>' +
         '<span class="badge ' + r.statusClass + '">' + esc(r.status) + '</span>' +
       '</div>' +
-      '<div class="when"><strong>' + esc(r.tourDate) + '</strong> at <strong>' + esc(r.tourTime) + '</strong> &middot; ' + esc(r.size) + ' guests</div>' +
+      '<div class="when"><strong>' + esc(r.tourDate) + '</strong> at <strong>' + esc(r.tourTime) + '</strong> &middot; ' + esc(r.size) + ' guests' +
+        (r.needed ? ' &middot; <strong>' + esc(r.needed) + '</strong> docent' + (r.needed === "1" ? "" : "s") + ' needed' : '') + '</div>' +
       '<dl class="fields">' +
         '<dt>Purpose</dt><dd>' + esc(r.purpose) + '</dd>' +
         '<dt>Date received</dt><dd>' + esc(r.received) + '</dd>' +

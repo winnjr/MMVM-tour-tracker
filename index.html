@@ -173,6 +173,8 @@
   .badge.pending { background: var(--amber-bg); color: var(--amber); }
   .badge.accepted { background: var(--blue-bg); color: var(--blue); }
   .badge.awaiting { background: var(--gray-bg); color: #555; }
+  .badge.crewed { background: var(--green-bg); color: var(--green); border: 1px solid #b9d4bf; }
+  .badge.needs { background: var(--amber-bg); color: var(--amber); border: 1px solid #e3cd9c; }
   .when {
     font-size: 16px;
     color: var(--ink);
@@ -270,6 +272,14 @@ function isCompleted(r) {
   return (r.status || "").toLowerCase().indexOf("complet") >= 0;
 }
 
+function crewInfo(r) {
+  var needed = parseInt(r.needed, 10);
+  if (isNaN(needed) || needed <= 0) return null;
+  var confirmed = parseInt(r.confirmedCt, 10);
+  if (isNaN(confirmed) || confirmed < 0) confirmed = 0;
+  return { needed: needed, confirmed: confirmed, gap: Math.max(0, needed - confirmed), fully: confirmed >= needed };
+}
+
 function gmailUrl(r) {
   var subject = "MMVM Tour Request No. " + r.num + " - " + r.org + " - " + r.tourDate;
   var body =
@@ -352,7 +362,7 @@ function load() {
       size: col("Group Size"), received: col("Date Received"), source: col("Source"),
       poc: col("Group POC"), contact: col("POC Contact"), docents: col("Docents"),
       status: col("Status"), notes: col("Notes"), comments: col("Tour Comments"),
-      needed: col("Docents Needed")
+      needed: col("Docents Needed"), confirmedCt: col("Docents Confirmed")
     };
     requests = rows.slice(1).map(function(r) {
       function g(k) { return idx[k] >= 0 ? (r[idx[k]] || "").trim() : ""; }
@@ -362,7 +372,7 @@ function load() {
         size: g("size"), received: g("received"), source: g("source"),
         poc: g("poc"), contact: g("contact"), docents: g("docents"),
         status: g("status") || "Awaiting details", notes: g("notes"),
-        comments: g("comments"), needed: g("needed"),
+        comments: g("comments"), needed: g("needed"), confirmedCt: g("confirmedCt"),
         statusClass: statusClass(g("status"))
       };
     }).filter(function(r) { return r.org !== ""; });
@@ -384,12 +394,18 @@ function renderSummary() {
   var today = new Date();
   var iso = today.getFullYear() + "-" + String(today.getMonth()+1).padStart(2,"0") + "-" + String(today.getDate()).padStart(2,"0");
   var upcoming = requests.filter(function(r){ return r.sortDate >= iso; }).length;
+  var docentGap = requests.reduce(function(sum, r) {
+    if (isCompleted(r)) return sum;
+    var crew = crewInfo(r);
+    return sum + (crew ? crew.gap : 0);
+  }, 0);
   document.getElementById("summary").innerHTML =
     '<div class="stat"><div class="num">' + total + '</div><div class="label">Total requests</div></div>' +
     '<div class="stat"><div class="num">' + confirmed + '</div><div class="label">Confirmed</div></div>' +
     '<div class="stat"><div class="num">' + open + '</div><div class="label">Needing action</div></div>' +
     '<div class="stat"><div class="num">' + upcoming + '</div><div class="label">Upcoming tours</div></div>' +
-    '<div class="stat"><div class="num">' + completed + '</div><div class="label">Completed</div></div>';
+    '<div class="stat"><div class="num">' + completed + '</div><div class="label">Completed</div></div>' +
+    '<div class="stat"><div class="num">' + docentGap + '</div><div class="label">Docents still needed</div></div>';
 }
 
 function renderFilters() {
@@ -440,14 +456,24 @@ function renderCards() {
     return;
   }
   document.getElementById("cards").innerHTML = backBtn + list.map(function(r) {
+    var crew = crewInfo(r);
+    var crewBadge = "";
+    var crewLine = "";
+    if (crew && !isCompleted(r)) {
+      crewBadge = crew.fully
+        ? '<span class="badge crewed">Fully crewed</span>'
+        : '<span class="badge needs">Needs ' + crew.gap + ' docent' + (crew.gap === 1 ? "" : "s") + '</span>';
+      crewLine = ' &middot; <strong>' + crew.confirmed + ' of ' + crew.needed + '</strong> docent' + (crew.needed === 1 ? "" : "s") + ' confirmed';
+    } else if (r.needed && !isCompleted(r)) {
+      crewLine = ' &middot; <strong>' + esc(r.needed) + '</strong> docents needed';
+    }
     return '<div class="card ' + r.statusClass + '">' +
       '<div class="card-top">' +
         '<div><div class="req-num">Request No. ' + esc(r.num) + '</div>' +
         '<h2><a href="#req-' + encodeURIComponent(r.num) + '" title="View this request by itself">' + esc(r.org) + '</a></h2></div>' +
-        '<span class="badge ' + r.statusClass + '">' + esc(r.status) + '</span>' +
+        '<span>' + crewBadge + ' <span class="badge ' + r.statusClass + '">' + esc(r.status) + '</span></span>' +
       '</div>' +
-      '<div class="when"><strong>' + esc(r.tourDate) + '</strong> at <strong>' + esc(r.tourTime) + '</strong> &middot; ' + esc(r.size) + ' guests' +
-        (r.needed ? ' &middot; <strong>' + esc(r.needed) + '</strong> docent' + (r.needed === "1" ? "" : "s") + ' needed' : '') + '</div>' +
+      '<div class="when"><strong>' + esc(r.tourDate) + '</strong> at <strong>' + esc(r.tourTime) + '</strong> &middot; ' + esc(r.size) + ' guests' + crewLine + '</div>' +
       '<dl class="fields">' +
         '<dt>Purpose</dt><dd>' + esc(r.purpose) + '</dd>' +
         '<dt>Date received</dt><dd>' + esc(r.received) + '</dd>' +
@@ -459,7 +485,7 @@ function renderCards() {
       (r.notes ? '<div class="notes">' + esc(r.notes) + '</div>' : '') +
       (r.comments ? '<div class="comments"><div class="comments-label">Tour comments</div>' + esc(r.comments) + '</div>' : '') +
       '<a class="mail-btn" href="' + gmailUrl(r).replace(/"/g, "&quot;") + '" target="_blank" rel="noopener">Email this request</a>' +
-      (isCompleted(r) ? '' : '<a class="cover-btn" href="' + coverUrl(r).replace(/"/g, "&quot;") + '">I can cover this tour</a>') +
+      ((isCompleted(r) || (crew && crew.fully)) ? '' : '<a class="cover-btn" href="' + coverUrl(r).replace(/"/g, "&quot;") + '">I can cover this tour</a>') +
     '</div>';
   }).join("");
 }

@@ -472,7 +472,7 @@ function renderCards() {
       '</dl>' +
       (r.notes ? '<div class="notes">' + esc(r.notes) + '</div>' : '') +
       (r.comments ? '<div class="comments"><div class="comments-label">Tour comments</div>' + esc(r.comments) + '</div>' : '') +
-      '<a class="mail-btn" href="' + gmailUrl(r).replace(/"/g, "&quot;") + '" target="_blank" rel="noopener">Email this request</a>' +
+      (isCompleted(r) ? '' : '<a class="mail-btn" href="' + gmailUrl(r).replace(/"/g, "&quot;") + '" target="_blank" rel="noopener">Email this request</a>') +
       ((isCompleted(r) || (crew && crew.fully)) ? '' : '<a class="cover-btn" href="' + coverUrl(r).replace(/"/g, "&quot;") + '">I can cover this tour</a>') +
     '</div>';
   }).join("");

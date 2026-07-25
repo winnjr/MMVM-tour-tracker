@@ -260,8 +260,7 @@ var SHEET_ID = "1Xaw20ubhWldHclfIVvDKmOGPQVVS6pCp9EXE3XBqPpU";
 var CSV_URL = "https://docs.google.com/spreadsheets/d/" + SHEET_ID + "/gviz/tq?tqx=out:csv";
 
 var requests = [];
-var activeFilter = "All";
-var hideCompleted = false;
+var activeFilter = "Open";
 
 function singleNum() {
   var m = location.hash.match(/^#req-(.+)$/);
@@ -410,24 +409,14 @@ function renderSummary() {
 
 function renderFilters() {
   if (singleNum()) { document.getElementById("filters").innerHTML = ""; return; }
-  var statuses = ["All"];
-  requests.forEach(function(r) { if (statuses.indexOf(r.status) < 0) statuses.push(r.status); });
-  var html = statuses.map(function(s) {
-    return '<button class="' + (s === activeFilter ? "active" : "") + '" onclick="setFilter(\'' + esc(s).replace(/'/g, "\\'") + '\')">' + esc(s) + '</button>';
+  var views = ["Open", "Completed", "All"];
+  document.getElementById("filters").innerHTML = views.map(function(s) {
+    return '<button class="' + (s === activeFilter ? "active" : "") + '" onclick="setFilter(\'' + s + '\')">' + s + '</button>';
   }).join("");
-  html += '<button class="toggle' + (hideCompleted ? " active" : "") + '" onclick="toggleCompleted()">' +
-    (hideCompleted ? "Showing open only" : "Hide completed") + '</button>';
-  document.getElementById("filters").innerHTML = html;
 }
 
 function setFilter(s) {
   activeFilter = s;
-  renderFilters();
-  renderCards();
-}
-
-function toggleCompleted() {
-  hideCompleted = !hideCompleted;
   renderFilters();
   renderCards();
 }
@@ -445,8 +434,8 @@ function renderCards() {
     }
   } else {
     list = requests.filter(function(r) {
-      if (activeFilter !== "All" && r.status !== activeFilter) return false;
-      if (hideCompleted && isCompleted(r)) return false;
+      if (activeFilter === "Open") return !isCompleted(r);
+      if (activeFilter === "Completed") return isCompleted(r);
       return true;
     });
   }
@@ -476,7 +465,6 @@ function renderCards() {
       '<div class="when"><strong>' + esc(r.tourDate) + '</strong> at <strong>' + esc(r.tourTime) + '</strong> &middot; ' + esc(r.size) + ' guests' + crewLine + '</div>' +
       '<dl class="fields">' +
         '<dt>Purpose</dt><dd>' + esc(r.purpose) + '</dd>' +
-        '<dt>Date received</dt><dd>' + esc(r.received) + '</dd>' +
         '<dt>Source</dt><dd>' + esc(r.source) + '</dd>' +
         '<dt>Group POC</dt><dd>' + esc(r.poc) + '</dd>' +
         '<dt>POC contact</dt><dd>' + esc(r.contact) + '</dd>' +

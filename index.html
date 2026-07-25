@@ -308,9 +308,23 @@ function singleNum() {
   return m ? decodeURIComponent(m[1]) : null;
 }
 
+function parseTimeMinutes(t) {
+  var m = (t || "").match(/(\d{1,2})(?::(\d{2}))?\s*(AM|PM)/i);
+  if (!m) return null;
+  var h = parseInt(m[1], 10) % 12;
+  if (/pm/i.test(m[3])) h += 12;
+  return h * 60 + (m[2] ? parseInt(m[2], 10) : 0);
+}
+
 function isCompleted(r) {
-  // A tour is completed automatically once its (end) date has passed
-  return r.dateEnd < todayISO();
+  // Completed automatically: past its date, or 2 hours after start time on tour day
+  var today = todayISO();
+  if (r.dateEnd < today) return true;
+  if (r.dateEnd > today) return false;
+  var tm = parseTimeMinutes(r.tourTime);
+  if (tm === null) return false;
+  var now = new Date();
+  return (now.getHours() * 60 + now.getMinutes()) >= tm + 120;
 }
 
 function derivedStatus(r) {

@@ -146,6 +146,21 @@
     font-family: Arial, sans-serif;
   }
   .mail-btn:hover { background: var(--navy); border-color: var(--navy); }
+  .cover-btn {
+    display: inline-block;
+    margin-top: 14px;
+    margin-left: 8px;
+    border: 1px solid var(--green);
+    background: var(--green);
+    color: #ffffff;
+    border-radius: 20px;
+    padding: 6px 18px;
+    font-size: 13px;
+    cursor: pointer;
+    text-decoration: none;
+    font-family: Arial, sans-serif;
+  }
+  .cover-btn:hover { background: #24522e; border-color: #24522e; }
   .filters button.toggle { border-color: var(--gold); }
   .filters button.toggle.active { background: var(--gold); border-color: var(--gold); color: #fff; }
   .badge {
@@ -256,6 +271,21 @@ function gmailUrl(r) {
     (r.notes ? "Notes: " + r.notes + "\n" : "") +
     "\nTracker link: https://winnjr.github.io/MMVM-tour-tracker/#req-" + encodeURIComponent(r.num) + "\n";
   return "https://mail.google.com/mail/?view=cm&fs=1&su=" + encodeURIComponent(subject) + "&body=" + encodeURIComponent(body);
+}
+
+function coverUrl(r) {
+  var subject = "Available to cover Tour Request No. " + r.num + " - " + r.org + " - " + r.tourDate;
+  var body =
+    "Buddy,\n\n" +
+    "I am available to cover this tour:\n\n" +
+    "Request No.: " + r.num + "\n" +
+    "Organization: " + r.org + "\n" +
+    "Tour date: " + r.tourDate + " at " + r.tourTime + "\n" +
+    "Group size: " + r.size + "\n\n" +
+    "Name: \n" +
+    "Best phone number: \n" +
+    "Notes or schedule limits: \n";
+  return "mailto:winnjr@gmail.com?subject=" + encodeURIComponent(subject) + "&body=" + encodeURIComponent(body);
 }
 
 function parseCSV(text) {
@@ -409,6 +439,7 @@ function renderCards() {
       '</dl>' +
       (r.notes ? '<div class="notes">' + esc(r.notes) + '</div>' : '') +
       '<a class="mail-btn" href="' + gmailUrl(r).replace(/"/g, "&quot;") + '" target="_blank" rel="noopener">Email this request</a>' +
+      (isCompleted(r) ? '' : '<a class="cover-btn" href="' + coverUrl(r).replace(/"/g, "&quot;") + '">I can cover this tour</a>') +
     '</div>';
   }).join("");
 }

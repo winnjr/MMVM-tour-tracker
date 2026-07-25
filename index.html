@@ -330,7 +330,8 @@ function load() {
 
 function renderSummary() {
   var total = requests.length;
-  var confirmed = requests.filter(function(r){ return r.statusClass === "confirmed"; }).length;
+  var completed = requests.filter(isCompleted).length;
+  var confirmed = requests.filter(function(r){ return r.statusClass === "confirmed" && !isCompleted(r); }).length;
   var open = requests.filter(function(r){ return r.statusClass === "pending" || r.statusClass === "awaiting"; }).length;
   var today = new Date();
   var iso = today.getFullYear() + "-" + String(today.getMonth()+1).padStart(2,"0") + "-" + String(today.getDate()).padStart(2,"0");
@@ -339,7 +340,8 @@ function renderSummary() {
     '<div class="stat"><div class="num">' + total + '</div><div class="label">Total requests</div></div>' +
     '<div class="stat"><div class="num">' + confirmed + '</div><div class="label">Confirmed</div></div>' +
     '<div class="stat"><div class="num">' + open + '</div><div class="label">Needing action</div></div>' +
-    '<div class="stat"><div class="num">' + upcoming + '</div><div class="label">Upcoming tours</div></div>';
+    '<div class="stat"><div class="num">' + upcoming + '</div><div class="label">Upcoming tours</div></div>' +
+    '<div class="stat"><div class="num">' + completed + '</div><div class="label">Completed</div></div>';
 }
 
 function renderFilters() {

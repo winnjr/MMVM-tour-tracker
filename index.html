@@ -66,14 +66,12 @@
     color: var(--muted);
     text-transform: uppercase;
     letter-spacing: 1px;
-    font-family: Arial, sans-serif;
   }
   .filters {
     display: flex;
     gap: 8px;
     flex-wrap: wrap;
     margin-bottom: 20px;
-    font-family: Arial, sans-serif;
   }
   .filters button {
     border: 1px solid var(--line);
@@ -83,6 +81,7 @@
     font-size: 13px;
     cursor: pointer;
     color: var(--ink);
+    font-family: Arial, sans-serif;
   }
   .filters button.active {
     background: var(--navy);
@@ -111,7 +110,6 @@
     margin-bottom: 4px;
   }
   .req-num {
-    font-family: Arial, sans-serif;
     font-size: 12px;
     color: var(--muted);
     letter-spacing: 1.5px;
@@ -119,7 +117,6 @@
   }
   .card h2 { font-size: 20px; font-weight: normal; color: var(--navy); margin: 2px 0 10px; }
   .badge {
-    font-family: Arial, sans-serif;
     font-size: 12px;
     padding: 4px 12px;
     border-radius: 12px;
@@ -146,7 +143,6 @@
   }
   .fields dt {
     color: var(--muted);
-    font-family: Arial, sans-serif;
     font-size: 12px;
     text-transform: uppercase;
     letter-spacing: 1px;
@@ -162,12 +158,18 @@
     font-size: 14px;
     color: #4a4d52;
   }
+  .loading, .error {
+    text-align: center;
+    padding: 40px 20px;
+    color: var(--muted);
+    font-size: 15px;
+  }
+  .error { color: #8a3030; }
   footer {
     text-align: center;
     font-size: 12.5px;
     color: var(--muted);
     padding: 10px 0 30px;
-    font-family: Arial, sans-serif;
   }
   @media (max-width: 560px) {
     .fields { grid-template-columns: 1fr; row-gap: 2px; }
@@ -185,88 +187,93 @@
 <div class="container">
   <div class="summary" id="summary"></div>
   <div class="filters" id="filters"></div>
-  <div id="cards"></div>
+  <div id="cards"><div class="loading">Loading tour requests...</div></div>
 </div>
-<footer>Last updated: July 25, 2026 &middot; Maintained by Buddy Winn &middot; Source: email requests via Kevin Olson, MMVM</footer>
+<footer id="foot">Maintained by Buddy Winn &middot; Data refreshes automatically each time this page is opened</footer>
 <script>
-const requests = [
-  {
-    num: 3,
-    org: "MN ARNG OCS Candidates",
-    purpose: "Pre-opening preview visit",
-    tourDate: "Saturday, July 25, 2026",
-    tourTime: "1:00 PM",
-    sortDate: "2026-07-25",
-    size: "20",
-    received: "July 23, 2026",
-    source: "Kevin Olson, coordinating with LTC Mindy Davis",
-    poc: "LTC Mindy Davis, Government Relations Officer, MN National Guard",
-    contact: "On file with tour coordinator",
-    docents: "Buddy Winn",
-    status: "Confirmed",
-    statusClass: "confirmed",
-    notes: "Buddy on site 1:00 PM to meet the group. Kevin and Randal unavailable that day."
-  },
-  {
-    num: 4,
-    org: "Congressman Stauber and Team",
-    purpose: "Museum visit while in the area",
-    tourDate: "August 3, 2026 (tentative)",
-    tourTime: "TBD",
-    sortDate: "2026-08-03",
-    size: "TBD",
-    received: "July 23, 2026",
-    source: "LTC Mindy Davis, via OCS tour thread",
-    poc: "Congressman Stauber's staff (details pending)",
-    contact: "On file with tour coordinator",
-    docents: "TBD",
-    status: "Awaiting details",
-    statusClass: "awaiting",
-    notes: "Mindy connecting Stauber's staff with Kevin for coordination. Buddy tracking with Kevin."
-  },
-  {
-    num: 1,
-    org: "US Navy Chiefs and Chief Selects",
-    purpose: "Training at Camp Ripley; history and heritage emphasis",
-    tourDate: "September 14&ndash;16, 2026 (exact day TBD)",
-    tourTime: "Flexible",
-    sortDate: "2026-09-14",
-    size: "25&ndash;40",
-    received: "July 14, 2026",
-    source: "Kevin Olson, fwd from Sandy Erickson; original inquiry July 11",
-    poc: "HMCS (EXW/IW) Kevin Blake",
-    contact: "On file with tour coordinator",
-    docents: "TBD &mdash; Jim Palmer requested (served USS Minneapolis / Saint Paul)",
-    status: "Pending docent",
-    statusClass: "pending",
-    notes: "Docent request out as of July 19. Group hours flexible. Advise Kevin Olson once docent confirmed."
-  },
-  {
-    num: 2,
-    org: "Rosemount Beyond the Yellow Ribbon",
-    purpose: "Guided group tour",
-    tourDate: "Thursday, September 24, 2026",
-    tourTime: "10:30 AM",
-    sortDate: "2026-09-24",
-    size: "~55",
-    received: "July 16, 2026",
-    source: "Kevin Olson",
-    poc: "Kevin Olson, relaying; group POC TBD",
-    contact: "kolson@mnmilitarymuseum.org | 651-212-0573",
-    docents: "Buddy Winn (lead); additional docents invited to observe",
-    status: "Accepted",
-    statusClass: "accepted",
-    notes: "Buddy leading; docents observing as primary exhibit scripts are test-fired. Large group; consider splitting into sections."
-  }
-];
+var SHEET_ID = "1bu3I3CXGk9mS-h8TNHB2LwZHiHD32Ro2aJWExm-H2KY";
+var CSV_URL = "https://docs.google.com/spreadsheets/d/" + SHEET_ID + "/gviz/tq?tqx=out:csv";
 
-let activeFilter = "All";
+var requests = [];
+var activeFilter = "All";
+
+function parseCSV(text) {
+  var rows = [], row = [], field = "", inQuotes = false;
+  for (var i = 0; i < text.length; i++) {
+    var c = text[i];
+    if (inQuotes) {
+      if (c === '"') {
+        if (text[i + 1] === '"') { field += '"'; i++; }
+        else { inQuotes = false; }
+      } else { field += c; }
+    } else {
+      if (c === '"') { inQuotes = true; }
+      else if (c === ',') { row.push(field); field = ""; }
+      else if (c === '\n') { row.push(field); field = ""; if (row.some(function(f){return f !== "";})) rows.push(row); row = []; }
+      else if (c === '\r') { }
+      else { field += c; }
+    }
+  }
+  if (field !== "" || row.length) { row.push(field); if (row.some(function(f){return f !== "";})) rows.push(row); }
+  return rows;
+}
+
+function statusClass(status) {
+  var s = (status || "").toLowerCase();
+  if (s.indexOf("confirm") >= 0 || s.indexOf("complete") >= 0) return "confirmed";
+  if (s.indexOf("pend") >= 0) return "pending";
+  if (s.indexOf("accept") >= 0) return "accepted";
+  return "awaiting";
+}
+
+function esc(s) {
+  return String(s || "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
+function load() {
+  fetch(CSV_URL).then(function(r) {
+    if (!r.ok) throw new Error("HTTP " + r.status);
+    return r.text();
+  }).then(function(text) {
+    var rows = parseCSV(text);
+    if (rows.length < 2) throw new Error("No data rows found");
+    var header = rows[0].map(function(h){ return h.trim().toLowerCase(); });
+    function col(name) { return header.indexOf(name.toLowerCase()); }
+    var idx = {
+      num: col("Req #"), org: col("Organization"), purpose: col("Purpose"),
+      tourDate: col("Tour Date"), tourTime: col("Tour Time"), sortDate: col("Sort Date"),
+      size: col("Group Size"), received: col("Date Received"), source: col("Source"),
+      poc: col("Group POC"), contact: col("POC Contact"), docents: col("Docents"),
+      status: col("Status"), notes: col("Notes")
+    };
+    requests = rows.slice(1).map(function(r) {
+      function g(k) { return idx[k] >= 0 ? (r[idx[k]] || "").trim() : ""; }
+      return {
+        num: g("num"), org: g("org"), purpose: g("purpose"),
+        tourDate: g("tourDate"), tourTime: g("tourTime"), sortDate: g("sortDate"),
+        size: g("size"), received: g("received"), source: g("source"),
+        poc: g("poc"), contact: g("contact"), docents: g("docents"),
+        status: g("status") || "Awaiting details", notes: g("notes"),
+        statusClass: statusClass(g("status"))
+      };
+    }).filter(function(r) { return r.org !== ""; });
+    renderSummary();
+    renderFilters();
+    renderCards();
+  }).catch(function(err) {
+    document.getElementById("cards").innerHTML =
+      '<div class="error">Could not load tour request data (' + esc(err.message) + ').<br>' +
+      'The data sheet must be shared as "Anyone with the link - Viewer". Refresh to retry.</div>';
+  });
+}
 
 function renderSummary() {
-  const total = requests.length;
-  const confirmed = requests.filter(r => r.statusClass === "confirmed").length;
-  const open = requests.filter(r => r.statusClass === "pending" || r.statusClass === "awaiting").length;
-  const upcoming = requests.filter(r => r.sortDate >= "2026-07-25").length;
+  var total = requests.length;
+  var confirmed = requests.filter(function(r){ return r.statusClass === "confirmed"; }).length;
+  var open = requests.filter(function(r){ return r.statusClass === "pending" || r.statusClass === "awaiting"; }).length;
+  var today = new Date();
+  var iso = today.getFullYear() + "-" + String(today.getMonth()+1).padStart(2,"0") + "-" + String(today.getDate()).padStart(2,"0");
+  var upcoming = requests.filter(function(r){ return r.sortDate >= iso; }).length;
   document.getElementById("summary").innerHTML =
     '<div class="stat"><div class="num">' + total + '</div><div class="label">Total requests</div></div>' +
     '<div class="stat"><div class="num">' + confirmed + '</div><div class="label">Confirmed</div></div>' +
@@ -275,10 +282,11 @@ function renderSummary() {
 }
 
 function renderFilters() {
-  const statuses = ["All", "Confirmed", "Accepted", "Pending docent", "Awaiting details"];
-  document.getElementById("filters").innerHTML = statuses.map(s =>
-    '<button class="' + (s === activeFilter ? "active" : "") + '" onclick="setFilter(\'' + s + '\')">' + s + '</button>'
-  ).join("");
+  var statuses = ["All"];
+  requests.forEach(function(r) { if (statuses.indexOf(r.status) < 0) statuses.push(r.status); });
+  document.getElementById("filters").innerHTML = statuses.map(function(s) {
+    return '<button class="' + (s === activeFilter ? "active" : "") + '" onclick="setFilter(\'' + esc(s).replace(/'/g, "\\'") + '\')">' + esc(s) + '</button>';
+  }).join("");
 }
 
 function setFilter(s) {
@@ -288,33 +296,34 @@ function setFilter(s) {
 }
 
 function renderCards() {
-  const list = requests
-    .filter(r => activeFilter === "All" || r.status === activeFilter)
-    .sort((a, b) => a.sortDate.localeCompare(b.sortDate));
-  document.getElementById("cards").innerHTML = list.map(r =>
-    '<div class="card ' + r.statusClass + '">' +
+  var list = requests.filter(function(r) { return activeFilter === "All" || r.status === activeFilter; })
+    .sort(function(a, b) { return (a.sortDate || "9999").localeCompare(b.sortDate || "9999"); });
+  if (!list.length) {
+    document.getElementById("cards").innerHTML = '<div class="loading">No tour requests to show.</div>';
+    return;
+  }
+  document.getElementById("cards").innerHTML = list.map(function(r) {
+    return '<div class="card ' + r.statusClass + '">' +
       '<div class="card-top">' +
-        '<div><div class="req-num">Request No. ' + r.num + '</div>' +
-        '<h2>' + r.org + '</h2></div>' +
-        '<span class="badge ' + r.statusClass + '">' + r.status + '</span>' +
+        '<div><div class="req-num">Request No. ' + esc(r.num) + '</div>' +
+        '<h2>' + esc(r.org) + '</h2></div>' +
+        '<span class="badge ' + r.statusClass + '">' + esc(r.status) + '</span>' +
       '</div>' +
-      '<div class="when"><strong>' + r.tourDate + '</strong> at <strong>' + r.tourTime + '</strong> &middot; ' + r.size + ' guests</div>' +
+      '<div class="when"><strong>' + esc(r.tourDate) + '</strong> at <strong>' + esc(r.tourTime) + '</strong> &middot; ' + esc(r.size) + ' guests</div>' +
       '<dl class="fields">' +
-        '<dt>Purpose</dt><dd>' + r.purpose + '</dd>' +
-        '<dt>Date received</dt><dd>' + r.received + '</dd>' +
-        '<dt>Source</dt><dd>' + r.source + '</dd>' +
-        '<dt>Group POC</dt><dd>' + r.poc + '</dd>' +
-        '<dt>POC contact</dt><dd>' + r.contact + '</dd>' +
-        '<dt>Docent(s)</dt><dd>' + r.docents + '</dd>' +
+        '<dt>Purpose</dt><dd>' + esc(r.purpose) + '</dd>' +
+        '<dt>Date received</dt><dd>' + esc(r.received) + '</dd>' +
+        '<dt>Source</dt><dd>' + esc(r.source) + '</dd>' +
+        '<dt>Group POC</dt><dd>' + esc(r.poc) + '</dd>' +
+        '<dt>POC contact</dt><dd>' + esc(r.contact) + '</dd>' +
+        '<dt>Docent(s)</dt><dd>' + esc(r.docents) + '</dd>' +
       '</dl>' +
-      (r.notes ? '<div class="notes">' + r.notes + '</div>' : '') +
-    '</div>'
-  ).join("");
+      (r.notes ? '<div class="notes">' + esc(r.notes) + '</div>' : '') +
+    '</div>';
+  }).join("");
 }
 
-renderSummary();
-renderFilters();
-renderCards();
+load();
 </script>
 </body>
 </html>

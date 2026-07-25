@@ -205,6 +205,22 @@
     font-size: 14px;
     color: #4a4d52;
   }
+  .comments {
+    margin-top: 14px;
+    padding: 12px 14px;
+    background: var(--green-bg);
+    border: 1px solid #c9dfcd;
+    border-radius: 4px;
+    font-size: 14px;
+    color: #2c4a33;
+  }
+  .comments .comments-label {
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: var(--green);
+    margin-bottom: 4px;
+  }
   .loading, .error {
     text-align: center;
     padding: 40px 20px;
@@ -238,7 +254,7 @@
 </div>
 <footer id="foot">Maintained by Buddy Winn &middot; Data refreshes automatically each time this page is opened</footer>
 <script>
-var SHEET_ID = "1bu3I3CXGk9mS-h8TNHB2LwZHiHD32Ro2aJWExm-H2KY";
+var SHEET_ID = "1Xaw20ubhWldHclfIVvDKmOGPQVVS6pCp9EXE3XBqPpU";
 var CSV_URL = "https://docs.google.com/spreadsheets/d/" + SHEET_ID + "/gviz/tq?tqx=out:csv";
 
 var requests = [];
@@ -335,7 +351,7 @@ function load() {
       tourDate: col("Tour Date"), tourTime: col("Tour Time"), sortDate: col("Sort Date"),
       size: col("Group Size"), received: col("Date Received"), source: col("Source"),
       poc: col("Group POC"), contact: col("POC Contact"), docents: col("Docents"),
-      status: col("Status"), notes: col("Notes")
+      status: col("Status"), notes: col("Notes"), comments: col("Tour Comments")
     };
     requests = rows.slice(1).map(function(r) {
       function g(k) { return idx[k] >= 0 ? (r[idx[k]] || "").trim() : ""; }
@@ -345,6 +361,7 @@ function load() {
         size: g("size"), received: g("received"), source: g("source"),
         poc: g("poc"), contact: g("contact"), docents: g("docents"),
         status: g("status") || "Awaiting details", notes: g("notes"),
+        comments: g("comments"),
         statusClass: statusClass(g("status"))
       };
     }).filter(function(r) { return r.org !== ""; });
@@ -438,6 +455,7 @@ function renderCards() {
         '<dt>Docent(s)</dt><dd>' + esc(r.docents) + '</dd>' +
       '</dl>' +
       (r.notes ? '<div class="notes">' + esc(r.notes) + '</div>' : '') +
+      (r.comments ? '<div class="comments"><div class="comments-label">Tour comments</div>' + esc(r.comments) + '</div>' : '') +
       '<a class="mail-btn" href="' + gmailUrl(r).replace(/"/g, "&quot;") + '" target="_blank" rel="noopener">Email this request</a>' +
       (isCompleted(r) ? '' : '<a class="cover-btn" href="' + coverUrl(r).replace(/"/g, "&quot;") + '">I can cover this tour</a>') +
     '</div>';

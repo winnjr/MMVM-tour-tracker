@@ -132,6 +132,20 @@
     font-family: Arial, sans-serif;
   }
   .back-btn:hover { background: var(--navy); color: #f2efe8; border-color: var(--navy); }
+  .mail-btn {
+    display: inline-block;
+    margin-top: 14px;
+    border: 1px solid var(--navy-light);
+    background: var(--navy-light);
+    color: #f2efe8;
+    border-radius: 20px;
+    padding: 6px 18px;
+    font-size: 13px;
+    cursor: pointer;
+    text-decoration: none;
+    font-family: Arial, sans-serif;
+  }
+  .mail-btn:hover { background: var(--navy); border-color: var(--navy); }
   .filters button.toggle { border-color: var(--gold); }
   .filters button.toggle.active { background: var(--gold); border-color: var(--gold); color: #fff; }
   .badge {
@@ -223,6 +237,25 @@ function singleNum() {
 
 function isCompleted(r) {
   return (r.status || "").toLowerCase().indexOf("complet") >= 0;
+}
+
+function gmailUrl(r) {
+  var subject = "MMVM Tour Request No. " + r.num + " - " + r.org + " - " + r.tourDate;
+  var body =
+    "Tour request details from the MMVM Docent Tour Request Tracker:\n\n" +
+    "Request No.: " + r.num + "\n" +
+    "Organization: " + r.org + "\n" +
+    "Purpose: " + r.purpose + "\n" +
+    "Tour date: " + r.tourDate + "\n" +
+    "Tour time: " + r.tourTime + "\n" +
+    "Group size: " + r.size + "\n" +
+    "Group POC: " + r.poc + "\n" +
+    "POC contact: " + r.contact + "\n" +
+    "Docent(s): " + r.docents + "\n" +
+    "Status: " + r.status + "\n" +
+    (r.notes ? "Notes: " + r.notes + "\n" : "") +
+    "\nTracker link: https://winnjr.github.io/MMVM-tour-tracker/#req-" + encodeURIComponent(r.num) + "\n";
+  return "https://mail.google.com/mail/?view=cm&fs=1&su=" + encodeURIComponent(subject) + "&body=" + encodeURIComponent(body);
 }
 
 function parseCSV(text) {
@@ -373,6 +406,7 @@ function renderCards() {
         '<dt>Docent(s)</dt><dd>' + esc(r.docents) + '</dd>' +
       '</dl>' +
       (r.notes ? '<div class="notes">' + esc(r.notes) + '</div>' : '') +
+      '<a class="mail-btn" href="' + gmailUrl(r).replace(/"/g, "&quot;") + '" target="_blank" rel="noopener">Email this request</a>' +
     '</div>';
   }).join("");
 }
